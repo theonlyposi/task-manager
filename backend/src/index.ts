@@ -4,7 +4,8 @@ import taskRoutes from './routes/task'; // ✅ This matches your actual file
 
 const app = express();
 // const PORT = 8000;
-const PORT = process.env.PORT || 8000;
+// const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 10000;
 
 
 app.use(express.json());
