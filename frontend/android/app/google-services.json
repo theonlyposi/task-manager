@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "104982081720",
+    "project_id": "my-taskable-app-2025",
+    "storage_bucket": "my-taskable-app-2025.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:104982081720:android:b7b984fc15d8f5c5a0444d",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjAggg-kaqdOqAmZQ8aFVQydx7LOWhUdY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'dart:ui';
 
@@ -65,17 +66,18 @@ class TaskModel {
 
   factory TaskModel.fromMap(Map<String, dynamic> map) {
     return TaskModel(
-      id: map['id'] ?? '',
-      uid: map['uid'] ?? '',
-      title: map['title'] ?? '',
-      description: map['description'] ?? '',
+      id: map['id'],
+      uid: map['uid'],
+      title: map['title'],
+      description: map['description'],
       createdAt: DateTime.parse(map['createdAt']),
       updatedAt: DateTime.parse(map['updatedAt']),
       dueAt: DateTime.parse(map['dueAt']),
       color: hexToRgb(map['hexColor']),
-      isSynced: map['isSynced'] ?? 1,
+      isSynced: map['isSynced'],
     );
   }
+
 
   String toJson() => json.encode(toMap());
 

@@ -6,15 +6,16 @@ class UserModel {
   final String email;
   final String name;
   final String token;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
   UserModel({
     required this.id,
     required this.email,
     required this.name,
     required this.token,
-    required this.createdAt,
-    required this.updatedAt,
+    this.createdAt,
+    this.updatedAt,
   });
 
   UserModel copyWith({
@@ -36,13 +37,13 @@ class UserModel {
   }
 
   Map<String, dynamic> toMap() {
-    return <String, dynamic>{
+    return {
       'id': id,
       'email': email,
       'name': name,
       'token': token,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
     };
   }
 
@@ -52,8 +53,8 @@ class UserModel {
       email: map['email'] ?? '',
       name: map['name'] ?? '',
       token: map['token'] ?? '',
-      createdAt: DateTime.parse(map['createdAt']),
-      updatedAt: DateTime.parse(map['updatedAt']),
+      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
+      updatedAt: map['updatedAt'] != null ? DateTime.parse(map['updatedAt']) : null,
     );
   }
 
@@ -62,6 +63,19 @@ class UserModel {
   factory UserModel.fromJson(String source) =>
       UserModel.fromMap(json.decode(source) as Map<String, dynamic>);
 
+  // ✅ Custom factory for login response structure
+  factory UserModel.fromLoginResponse(Map<String, dynamic> json) {
+    final user = json['user'];
+    return UserModel(
+      id: user['id'] ?? '',
+      email: user['email'] ?? '',
+      name: user['name'] ?? '',
+      token: json['token'] ?? '',
+      createdAt: null,
+      updatedAt: null,
+    );
+  }
+
   @override
   String toString() {
     return 'UserModel(id: $id, email: $email, name: $name, token: $token, createdAt: $createdAt, updatedAt: $updatedAt)';
@@ -69,8 +83,6 @@ class UserModel {
 
   @override
   bool operator ==(covariant UserModel other) {
-    if (identical(this, other)) return true;
-
     return other.id == id &&
         other.email == email &&
         other.name == name &&
@@ -82,10 +94,10 @@ class UserModel {
   @override
   int get hashCode {
     return id.hashCode ^
-        email.hashCode ^
-        name.hashCode ^
-        token.hashCode ^
-        createdAt.hashCode ^
-        updatedAt.hashCode;
+    email.hashCode ^
+    name.hashCode ^
+    token.hashCode ^
+    createdAt.hashCode ^
+    updatedAt.hashCode;
   }
 }

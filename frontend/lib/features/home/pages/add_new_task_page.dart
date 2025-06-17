@@ -2,38 +2,38 @@ import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/features/auth/cubit/auth_cubit.dart';
 import 'package:frontend/features/home/cubit/tasks_cubit.dart';
-import 'package:frontend/features/home/pages/home_page.dart';
+import 'package:frontend/models/task_model.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class AddNewTaskPage extends StatefulWidget {
-  static MaterialPageRoute route() => MaterialPageRoute(
-        builder: (context) => const AddNewTaskPage(),
-      );
-  const AddNewTaskPage({super.key});
+  final TaskModel? task;
+  const AddNewTaskPage({super.key, this.task});
+
+  static MaterialPageRoute route({TaskModel? task}) => MaterialPageRoute(
+    builder: (context) => AddNewTaskPage(task: task),
+  );
 
   @override
   State<AddNewTaskPage> createState() => _AddNewTaskPageState();
 }
 
 class _AddNewTaskPageState extends State<AddNewTaskPage> {
-  TextEditingController titleController = TextEditingController();
-  TextEditingController descriptionController = TextEditingController();
+  final TextEditingController titleController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
   DateTime selectedDate = DateTime.now();
   Color selectedColor = const Color.fromRGBO(246, 222, 194, 1);
   final formKey = GlobalKey<FormState>();
 
-  void createNewTask() async {
-    if (formKey.currentState!.validate()) {
-      AuthLoggedIn user = context.read<AuthCubit>().state as AuthLoggedIn;
-      await context.read<TasksCubit>().createNewTask(
-            uid: user.user.id,
-            title: titleController.text.trim(),
-            description: descriptionController.text.trim(),
-            color: selectedColor,
-            token: user.user.token,
-            dueAt: selectedDate,
-          );
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.task != null) {
+      titleController.text = widget.task!.title;
+      descriptionController.text = widget.task!.description;
+      selectedDate = widget.task!.dueAt;
+      selectedColor = widget.task!.color;
     }
   }
 
@@ -44,32 +44,71 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
     super.dispose();
   }
 
+  Future<void> _selectDate() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 90)),
+    );
+    if (pickedDate != null && pickedDate != selectedDate) {
+      setState(() {
+        selectedDate = pickedDate;
+      });
+    }
+  }
+
+  Future<void> _submitTask() async {
+    if (!formKey.currentState!.validate()) return;
+
+    final authState = context.read<AuthCubit>().state;
+    if (authState is! AuthLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User not logged in. Please log in again.')),
+      );
+      return;
+    }
+
+    final user = authState.user;
+
+    if (widget.task == null) {
+      // Create new task
+      await context.read<TasksCubit>().createNewTask(
+        uid: user.id,
+        title: titleController.text.trim(),
+        description: descriptionController.text.trim(),
+        color: selectedColor,
+        token: user.token,
+        dueAt: selectedDate,
+      );
+    } else {
+      // Edit existing task
+      await context.read<TasksCubit>().editTask(
+        taskId: widget.task!.id,
+        title: titleController.text.trim(),
+        description: descriptionController.text.trim(),
+        color: selectedColor,
+        token: user.token,
+        dueAt: selectedDate,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.task != null;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add New Task'),
+        title: Text(isEditing ? 'Edit Task' : 'Add New Task'),
         actions: [
-          GestureDetector(
-            onTap: () async {
-              final _selectedDate = await showDatePicker(
-                context: context,
-                firstDate: DateTime.now(),
-                lastDate: DateTime.now().add(
-                  const Duration(days: 90),
-                ),
-              );
-
-              if (_selectedDate != null) {
-                setState(() {
-                  selectedDate = _selectedDate;
-                });
-              }
-            },
+          TextButton(
+            onPressed: _selectDate,
             child: Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
                 DateFormat("MM-d-y").format(selectedDate),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
               ),
             ),
           )
@@ -81,23 +120,20 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(state.error)),
             );
-          } else if (state is AddNewTaskSuccess) {
+          } else if (state is AddNewTaskSuccess || state is EditTaskSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Task added successfully!")),
+              SnackBar(content: Text(isEditing ? 'Task updated!' : 'Task added!')),
             );
-            Navigator.pushAndRemoveUntil(
-                context, HomePage.route(), (_) => false);
+            Navigator.pop(context, true); // Return true to trigger refresh
           }
         },
         builder: (context, state) {
           if (state is TasksLoading) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
-          return Padding(
-            padding: const EdgeInsets.all(20.0),
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
             child: Form(
               key: formKey,
               child: Column(
@@ -106,50 +142,55 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
                     controller: titleController,
                     decoration: const InputDecoration(
                       hintText: 'Title',
+                      border: OutlineInputBorder(),
                     ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return "Title cannot be empty";
-                      }
-                      return null;
-                    },
+                    validator: (value) =>
+                    (value == null || value.trim().isEmpty)
+                        ? "Title cannot be empty"
+                        : null,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 16),
                   TextFormField(
                     controller: descriptionController,
                     decoration: const InputDecoration(
                       hintText: 'Description',
+                      border: OutlineInputBorder(),
                     ),
                     maxLines: 4,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return "Description cannot be empty";
-                      }
-                      return null;
-                    },
+                    validator: (value) =>
+                    (value == null || value.trim().isEmpty)
+                        ? "Description cannot be empty"
+                        : null,
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 16),
                   ColorPicker(
                     heading: const Text('Select color'),
-                    subheading: const Text('Select a different shade'),
-                    onColorChanged: (Color color) {
+                    subheading: const Text('Pick your task color'),
+                    color: selectedColor,
+                    onColorChanged: (color) {
                       setState(() {
                         selectedColor = color;
                       });
                     },
-                    color: selectedColor,
                     pickersEnabled: const {
                       ColorPickerType.wheel: true,
                     },
                   ),
-                  const SizedBox(height: 10),
-                  ElevatedButton(
-                    onPressed: createNewTask,
-                    child: const Text(
-                      'SUBMIT',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _submitTask,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: Text(
+                          isEditing ? 'UPDATE' : 'SUBMIT',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
                   ),

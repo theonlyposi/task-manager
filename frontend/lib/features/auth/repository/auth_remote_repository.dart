@@ -17,9 +17,7 @@ class AuthRemoteRepository {
   }) async {
     try {
       final res = await http.post(
-        Uri.parse(
-          '${Constants.backendUri}/auth/signup',
-        ),
+        Uri.parse('${Constants.backendUri}/auth/signup'),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -34,7 +32,12 @@ class AuthRemoteRepository {
         throw jsonDecode(res.body)['error'];
       }
 
-      return UserModel.fromJson(res.body);
+      final data = jsonDecode(res.body);
+      final user = UserModel.fromLoginResponse(data);
+      await spService.saveToken(user.token);
+      await authLocalRepository.saveUser(user);
+
+      return user;
     } catch (e) {
       throw e.toString();
     }
@@ -46,9 +49,7 @@ class AuthRemoteRepository {
   }) async {
     try {
       final res = await http.post(
-        Uri.parse(
-          '${Constants.backendUri}/auth/login',
-        ),
+        Uri.parse('${Constants.backendUri}/auth/login'),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -62,23 +63,25 @@ class AuthRemoteRepository {
         throw jsonDecode(res.body)['error'];
       }
 
-      return UserModel.fromJson(res.body);
+      final data = jsonDecode(res.body);
+      final user = UserModel.fromLoginResponse(data);
+      await spService.saveToken(user.token);
+      await authLocalRepository.saveUser(user);
+
+      return user;
     } catch (e) {
       throw e.toString();
     }
   }
 
-  Future<UserModel?> getUserData() async {
+  Future<UserModel?> getUserData({required String token}) async {
     try {
-      final token = await spService.getToken();
-      if (token == null) {
+      if (token.isEmpty) {
         return null;
       }
 
       final res = await http.post(
-        Uri.parse(
-          '${Constants.backendUri}/auth/tokenIsValid',
-        ),
+        Uri.parse('${Constants.backendUri}/auth/tokenIsValid'),
         headers: {
           'Content-Type': 'application/json',
           'x-auth-token': token,
@@ -90,9 +93,7 @@ class AuthRemoteRepository {
       }
 
       final userResponse = await http.get(
-        Uri.parse(
-          '${Constants.backendUri}/auth',
-        ),
+        Uri.parse('${Constants.backendUri}/auth'),
         headers: {
           'Content-Type': 'application/json',
           'x-auth-token': token,
@@ -102,7 +103,9 @@ class AuthRemoteRepository {
       if (userResponse.statusCode != 200) {
         throw jsonDecode(userResponse.body)['error'];
       }
-      return UserModel.fromJson(userResponse.body);
+
+      final data = jsonDecode(userResponse.body);
+      return UserModel.fromMap(data);
     } catch (e) {
       final user = await authLocalRepository.getUser();
       print(user);

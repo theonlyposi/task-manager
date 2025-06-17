@@ -62,7 +62,6 @@ class TaskLocalRepository {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
-
     await batch.commit(noResult: true);
   }
 
@@ -70,13 +69,8 @@ class TaskLocalRepository {
     final db = await database;
     final result = await db.query(tableName);
     if (result.isNotEmpty) {
-      List<TaskModel> tasks = [];
-      for (final elem in result) {
-        tasks.add(TaskModel.fromMap(elem));
-      }
-      return tasks;
+      return result.map((e) => TaskModel.fromMap(e)).toList();
     }
-
     return [];
   }
 
@@ -88,13 +82,8 @@ class TaskLocalRepository {
       whereArgs: [0],
     );
     if (result.isNotEmpty) {
-      List<TaskModel> tasks = [];
-      for (final elem in result) {
-        tasks.add(TaskModel.fromMap(elem));
-      }
-      return tasks;
+      return result.map((e) => TaskModel.fromMap(e)).toList();
     }
-
     return [];
   }
 
@@ -107,4 +96,26 @@ class TaskLocalRepository {
       whereArgs: [id],
     );
   }
+
+  Future<void> deleteTask(String id) async {
+    final db = await database;
+    await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> updateTask(TaskModel task) async {
+    final db = await database;
+    await db.update(
+      tableName,
+      task.toMap(),
+      where: 'id = ?',
+      whereArgs: [task.id],
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> clearAllTasks() async {
+    final db = await database;
+    await db.delete(tableName);
+  }
+
 }

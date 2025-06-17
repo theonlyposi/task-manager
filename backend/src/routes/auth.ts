@@ -1,16 +1,25 @@
-import { Router, Request, Response } from "express";
+import { Router, RequestHandler } from "express";
 import { db } from "../db";
 import { NewUser, users } from "../db/schema";
 import { eq } from "drizzle-orm";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { auth, AuthRequest } from "../middleware/auth";
-const authRouter = Router();
+import nodemailer from "nodemailer";
+import otpGenerator from "otp-generator";
 
-interface SignUpBody {
+const authRouter = Router();
+const otpStore = new Map<string, string>(); // email -> otp
+
+interface RequestOtpBody {
+  email: string;
+}
+
+interface VerifyOtpSignupBody {
   name: string;
   email: string;
   password: string;
+  otp: string;
 }
 
 interface LoginBody {
@@ -18,125 +27,131 @@ interface LoginBody {
   password: string;
 }
 
-authRouter.post(
-  "/signup",
-  async (req: Request<{}, {}, SignUpBody>, res: Response) => {
-    try {
-      // get req body
-      const { name, email, password } = req.body;
-      // check if the user already exists
-      const existingUser = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email));
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.OTP_EMAIL,
+    pass: process.env.OTP_EMAIL_PASSWORD,
+  },
+});
 
-      if (existingUser.length) {
-        res
-          .status(400)
-          .json({ error: "User with the same email already exists!" });
-        return;
-      }
+const requestOtpHandler: RequestHandler<{}, {}, RequestOtpBody> = async (req, res) => {
+  const { email } = req.body;
 
-      // hashed pw
-      const hashedPassword = await bcryptjs.hash(password, 8);
-      // create a new user and store in db
-      const newUser: NewUser = {
-        name,
-        email,
-        password: hashedPassword,
-      };
-
-      const [user] = await db.insert(users).values(newUser).returning();
-      res.status(201).json(user);
-    } catch (e) {
-      res.status(500).json({ error: e });
-    }
+  const existingUser = await db.select().from(users).where(eq(users.email, email));
+  if (existingUser.length > 0) {
+    res.status(400).json({ error: "User with this email already exists!" });
+    return;
   }
-);
 
-authRouter.post(
-  "/login",
-  async (req: Request<{}, {}, LoginBody>, res: Response) => {
-    try {
-      // get req body
-      const { email, password } = req.body;
+  const otp = otpGenerator.generate(6, {
+    digits: true,
+    upperCaseAlphabets: false,
+    lowerCaseAlphabets: false,
+    specialChars: false,
+  });
 
-      // check if the user doesnt exist
-      const [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, email));
+  otpStore.set(email, otp);
 
-      if (!existingUser) {
-        res.status(400).json({ error: "User with this email does not exist!" });
-        return;
-      }
+  await transporter.sendMail({
+    from: process.env.OTP_EMAIL,
+    to: email,
+    subject: "Your Signup OTP",
+    text: `Your OTP for signup is: ${otp}`,
+  });
 
-      const isMatch = await bcryptjs.compare(password, existingUser.password);
-      if (!isMatch) {
-        res.status(400).json({ error: "Incorrect password!" });
-        return;
-      }
+  res.status(200).json({ message: "OTP sent to email" });
+};
 
-      const token = jwt.sign({ id: existingUser.id }, "passwordKey");
+const verifyOtpAndSignupHandler: RequestHandler<{}, {}, VerifyOtpSignupBody> = async (req, res) => {
+  const { name, email, password, otp } = req.body;
 
-      res.json({ token, ...existingUser });
-    } catch (e) {
-      res.status(500).json({ error: e });
-    }
+  const savedOtp = otpStore.get(email);
+  if (!savedOtp || savedOtp !== otp) {
+    res.status(400).json({ error: "Invalid or expired OTP" });
+    return;
   }
-);
 
-authRouter.post("/tokenIsValid", async (req, res) => {
+  const hashedPassword = await bcryptjs.hash(password, 8);
+  const newUser: NewUser = { name, email, password: hashedPassword };
+
+  const [user] = await db.insert(users).values(newUser).returning();
+  otpStore.delete(email);
+
+  res.status(201).json(user);
+};
+
+const loginHandler: RequestHandler<{}, {}, LoginBody> = async (req, res) => {
+  const { email, password } = req.body;
+
+  const [existingUser] = await db.select().from(users).where(eq(users.email, email));
+  if (!existingUser) {
+    res.status(400).json({ error: "User with this email does not exist!" });
+    return;
+  }
+
+  const isMatch = await bcryptjs.compare(password, existingUser.password);
+  if (!isMatch) {
+    res.status(400).json({ error: "Incorrect password!" });
+    return;
+  }
+
+  const token = jwt.sign({ id: existingUser.id }, "passwordKey");
+
+  res.status(200).json({
+    message: "Login successful",
+    user: {
+      id: existingUser.id,
+      name: existingUser.name,
+      email: existingUser.email,
+    },
+    token,
+  });
+};
+
+const tokenIsValidHandler: RequestHandler = async (req, res) => {
   try {
-    // get the header
     const token = req.header("x-auth-token");
-
     if (!token) {
       res.json(false);
       return;
     }
 
-    // verify if the token is valid
-    const verified = jwt.verify(token, "passwordKey");
-
-    if (!verified) {
-      res.json(false);
-      return;
-    }
-
-    // get the user data if the token is valid
-    const verifiedToken = verified as { id: string };
-
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, verifiedToken.id));
-
+    const verified = jwt.verify(token, "passwordKey") as { id: string };
+    const [user] = await db.select().from(users).where(eq(users.id, verified.id));
     if (!user) {
       res.json(false);
       return;
     }
 
     res.json(true);
-  } catch (e) {
+  } catch {
     res.status(500).json(false);
   }
-});
+};
 
-authRouter.get("/", auth, async (req: AuthRequest, res) => {
+const getUserHandler: RequestHandler = async (req: any, res) => {
   try {
-    if (!req.user) {
+    const userId = (req as AuthRequest).user;
+    const token = (req as AuthRequest).token;
+
+    if (!userId) {
       res.status(401).json({ error: "User not found!" });
       return;
     }
 
-    const [user] = await db.select().from(users).where(eq(users.id, req.user));
-
-    res.json({ ...user, token: req.token });
-  } catch (e) {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    res.json({ ...user, token });
+  } catch {
     res.status(500).json(false);
   }
-});
+};
+
+// Route bindings
+authRouter.post("/signup/request-otp", requestOtpHandler);
+authRouter.post("/signup/verify-otp", verifyOtpAndSignupHandler);
+authRouter.post("/login", loginHandler);
+authRouter.post("/tokenIsValid", tokenIsValidHandler);
+authRouter.get("/", auth, getUserHandler);
 
 export default authRouter;

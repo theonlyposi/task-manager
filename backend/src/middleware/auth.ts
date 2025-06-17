@@ -6,7 +6,7 @@ import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
 
 export interface AuthRequest extends Request {
-  user?: UUID;
+  user?: string; // not UUID object
   token?: string;
 }
 
@@ -33,7 +33,8 @@ export const auth = async (
     }
 
     // get the user data if the token is valid
-    const verifiedToken = verified as { id: UUID };
+    // const verifiedToken = verified as { id: UUID };
+    const verifiedToken = verified as { id: string };
 
     const [user] = await db
       .select()

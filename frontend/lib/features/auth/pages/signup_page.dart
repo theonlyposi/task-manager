@@ -1,161 +1,147 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:frontend/features/auth/cubit/auth_cubit.dart';
-import 'package:frontend/features/auth/pages/login_page.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:http/http.dart' as http;
 
-class SignupPage extends StatefulWidget {
-  static MaterialPageRoute route() => MaterialPageRoute(
-        builder: (context) => const SignupPage(),
-      );
-  const SignupPage({super.key});
+import '../../../core/constants/constants.dart';
+
+class RequestOtpPage extends StatefulWidget {
+  const RequestOtpPage({super.key});
 
   @override
-  State<SignupPage> createState() => _SignupPageState();
+  State<RequestOtpPage> createState() => _RequestOtpPageState();
 }
 
-class _SignupPageState extends State<SignupPage> {
+class _RequestOtpPageState extends State<RequestOtpPage> {
   final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  final nameController = TextEditingController();
-  final formKey = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>();
+  bool loading = false;
 
-  @override
-  void dispose() {
-    emailController.dispose();
-    passwordController.dispose();
-    nameController.dispose();
-    super.dispose();
+  Future<void> requestOtp() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final email = emailController.text.trim();
+
+    setState(() => loading = true);
+
+    try {
+      final res = await http.post(
+        Uri.parse("${Constants.backendUri}/auth/signup/request-otp"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"email": email}),
+      );
+
+      if (res.statusCode == 200) {
+        if (!mounted) return;
+        Navigator.pushNamed(context, '/verifyOtp', arguments: email);
+      } else {
+        final body = jsonDecode(res.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(body['error'] ?? 'Error requesting OTP')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Network error: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => loading = false);
+      }
+    }
   }
 
-  void signUpUser() {
-    if (formKey.currentState!.validate()) {
-      context.read<AuthCubit>().signUp(
-            name: nameController.text.trim(),
-            email: emailController.text.trim(),
-            password: passwordController.text.trim(),
-          );
-    }
+  String? emailValidator(String? value) {
+    if (value == null || value.isEmpty) return 'Enter your email';
+    // Simple email regex
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(value)) return 'Enter a valid email address';
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        body: BlocConsumer<AuthCubit, AuthState>(
-      listener: (context, state) {
-        if (state is AuthError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(state.error),
-            ),
-          );
-        } else if (state is AuthSignUp) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Account created! Login NOW!"),
-            ),
-          );
-        }
-      },
-      builder: (context, state) {
-        if (state is AuthLoading) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-
-        return Padding(
-          padding: const EdgeInsets.all(15.0),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  "Sign Up.",
-                  style: TextStyle(
-                    fontSize: 50,
-                    fontWeight: FontWeight.bold,
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 30),
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    hintText: 'Name',
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Request OTP',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return "Name field cannot be empty!";
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 15),
-                TextFormField(
-                  controller: emailController,
-                  decoration: const InputDecoration(
-                    hintText: 'Email',
-                  ),
-                  validator: (value) {
-                    if (value == null ||
-                        value.trim().isEmpty ||
-                        !value.trim().contains("@")) {
-                      return "Email field is invalid!";
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 15),
-                TextFormField(
-                  controller: passwordController,
-                  decoration: const InputDecoration(
-                    hintText: 'Password',
-                  ),
-                  validator: (value) {
-                    if (value == null ||
-                        value.trim().isEmpty ||
-                        value.trim().length <= 6) {
-                      return "Password field is invalid!";
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: signUpUser,
-                  child: const Text(
-                    'SIGN UP',
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Enter your email to receive an OTP for signup verification.',
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.white,
+                      color: Colors.grey,
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).push(LoginPage.route());
-                  },
-                  child: RichText(
-                    text: TextSpan(
-                      text: 'Already have an account? ',
-                      style: Theme.of(context).textTheme.titleMedium,
-                      children: const [
-                        TextSpan(
-                          text: 'Sign In',
+                  const SizedBox(height: 30),
+                  const Text(
+                    'Email',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: emailController,
+                    validator: emailValidator,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.email),
+                      hintText: 'Enter your email',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  GestureDetector(
+                    onTap: loading ? null : requestOtp,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        color: Colors.lightBlueAccent,
+                      ),
+                      child: Center(
+                        child: loading
+                            ? const CircularProgressIndicator(
+                          color: Colors.white,
+                        )
+                            : const Text(
+                          'Send OTP',
                           style: TextStyle(
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
+                            fontSize: 16,
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        );
-      },
-    ));
+        ),
+      ),
+    );
   }
 }
