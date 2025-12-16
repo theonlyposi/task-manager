@@ -1,14 +1,31 @@
-import 'dotenv/config'; // This loads environment variables from Render
-import { drizzle } from 'drizzle-orm/node-postgres';
-import pg from 'pg';
+import type { Config } from "drizzle-kit";
+import * as dotenv from "dotenv";
+dotenv.config();
 
-const { Pool } = pg;
+export default {
+  schema: "./src/db/schema.ts",  // update if your path differs
+  out: "./drizzle",
+  driver: "pg",
+  dbCredentials: {
+    connectionString: process.env.DATABASE_URL + "?sslmode=require",
+  },
+} satisfies Config;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
 
-export const db = drizzle(pool);
+// import { defineConfig } from 'drizzle-kit';
+// import * as dotenv from 'dotenv';
+
+// dotenv.config();
+
+// export default defineConfig({
+//   schema: './src/db/schema.ts',
+//   out: './drizzle',
+//   driver: 'pg',
+//   dbCredentials: {
+//     connectionString: process.env.DATABASE_URL!,
+//   },
+// });
+
 
 // // drizzle.config.ts
 // import { defineConfig } from "drizzle-kit";

@@ -1,7 +1,5 @@
-
 import 'dart:convert';
 import 'dart:ui';
-
 import 'package:frontend/core/constants/utils.dart';
 
 class TaskModel {
@@ -66,19 +64,17 @@ class TaskModel {
 
   factory TaskModel.fromMap(Map<String, dynamic> map) {
     return TaskModel(
-      id: map['id'],
-      uid: map['uid'],
-      title: map['title'],
-      description: map['description'],
-      createdAt: DateTime.parse(map['createdAt']),
-      updatedAt: DateTime.parse(map['updatedAt']),
-      dueAt: DateTime.parse(map['dueAt']),
-      color: hexToRgb(map['hexColor']),
-      isSynced: map['isSynced'],
+      id: map['id']?.toString() ?? '',
+      uid: map['uid'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(map['updatedAt'] ?? '') ?? DateTime.now(),
+      dueAt: DateTime.tryParse(map['dueAt'] ?? '') ?? DateTime.now(),
+      color: hexToRgb(map['hexColor'] ?? '#000000'), // Make sure hexToRgb is safe too
+      isSynced: (map['isSynced'] is int) ? map['isSynced'] : 0,
     );
   }
-
-
   String toJson() => json.encode(toMap());
 
   factory TaskModel.fromJson(String source) =>
@@ -86,7 +82,16 @@ class TaskModel {
 
   @override
   String toString() {
-    return 'TaskModel(id: $id, uid: $uid, title: $title, description: $description, createdAt: $createdAt, updatedAt: $updatedAt, dueAt: $dueAt, color: $color)';
+    return 'TaskModel('
+        ''
+        'id: $id,'
+        'uid: $uid,'
+        'title: $title, '
+        'description: $description, '
+        'createdAt: $createdAt, '
+        'updatedAt: $updatedAt, '
+        'dueAt: $dueAt, '
+        'color: $color)';
   }
 
   @override

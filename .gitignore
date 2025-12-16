@@ -1,0 +1,55 @@
+# Step 1: Create .gitignore with proper rules
+cat > .gitignore <<EOL
+# macOS
+.DS_Store
+
+# Environment variables
+.env
+
+# Node.js
+node_modules/
+npm-debug.log
+
+# Flutter / Dart
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+pubspec.lock
+
+# iOS / Xcode
+ios/Pods/
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Runner/GeneratedPluginRegistrant.*
+
+# Android / Gradle
+android/.gradle/
+android/app/build/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Misc
+*.log
+EOL
+
+# Step 2: Remove already-tracked junk from Git
+git rm -r --cached frontend/build frontend/.dart_tool frontend/.flutter-plugins frontend/.flutter-plugins-dependencies
+git rm -r --cached frontend/.idea frontend/frontend.iml
+git rm --cached .DS_Store backend/.DS_Store frontend/.DS_Store
+git rm --cached backend/.env
+git rm -r --cached backend/node_modules
+
+# Step 3: Stage only real code
+git add frontend/lib frontend/pubspec.yaml frontend/pubspec.lock
+git add backend/src backend/package.json backend/package-lock.json backend/drizzle.config.ts backend/docker-compose.yml
+git add README.md .gitignore
+
+# Step 4: Commit and push
+git commit -m "chore: add .gitignore, clean repo, and commit frontend + backend"
+git push origin main

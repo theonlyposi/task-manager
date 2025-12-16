@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, timestamp, integer } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -25,6 +25,7 @@ export const tasks = pgTable("tasks", {
   ),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  progress: integer("progress").default(0),
 });
 
 export type Task = typeof tasks.$inferSelect;

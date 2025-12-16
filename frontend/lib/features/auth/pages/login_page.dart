@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:frontend/buttom_nav.dart';          // Your main nav page
+import 'package:frontend/buttom_nav.dart';
 import 'package:frontend/features/auth/pages/signup_page.dart';
 import 'package:frontend/features/auth/repository/auth_local_repository.dart';
 import 'package:frontend/features/auth/repository/auth_remote_repository.dart';
 import 'package:frontend/core/services/sp_service.dart';
 import 'package:frontend/models/user_model.dart';
 import '../../../intropage.dart';
+import 'resest/forgot_pass.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -26,7 +27,7 @@ class _LoginPageState extends State<LoginPage> {
   final _formkey = GlobalKey<FormState>();
   bool isLoading = false;
   bool savePassword = false;
-
+  bool _obscureText = true; // 👁️ Add this state variable
 
   Future<void> loginUser() async {
     if (!_formkey.currentState!.validate()) return;
@@ -84,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   Align(
                     alignment: Alignment.topLeft,
-                    child: IconButton(
+                      child: IconButton(
                       onPressed: () {
                         Navigator.pushReplacement(
                           context,
@@ -128,6 +129,7 @@ class _LoginPageState extends State<LoginPage> {
                       prefixIcon: const Icon(Icons.email),
                       hintText: "Enter your Email",
                       border: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.white),
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
@@ -148,12 +150,22 @@ class _LoginPageState extends State<LoginPage> {
                       }
                       return null;
                     },
-                    obscureText: true,
+                    obscureText: _obscureText,
                     decoration: InputDecoration(
                       prefixIcon: const Icon(Icons.lock),
                       hintText: "Enter your password",
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
+                      ),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _obscureText = !_obscureText;
+                          });
+                        },
+                        icon: Icon(
+                          _obscureText ? Icons.visibility_off : Icons.visibility,
+                        ),
                       ),
                     ),
                   ),
@@ -176,7 +188,11 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       TextButton(
                         onPressed: () {
-                          // TODO: Implement forgot password flow
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const ForgotPasswordPage()),
+                          );
                         },
                         child: const Text("Forgot password?"),
                       ),

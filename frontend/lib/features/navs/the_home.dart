@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:frontend/features/navs/notification.dart';
 import 'package:intl/intl.dart';
 
 import 'package:frontend/features/navs/the.task.dart';
@@ -96,6 +97,9 @@ class _TheHomeState extends State<TheHome> {
                     IconButton(
                       icon: Icon(Icons.notifications, color: Theme.of(context).iconTheme.color),
                       onPressed: () {
+                        Navigator.push(context,
+                            MaterialPageRoute(builder:
+                                (context) => NotificationPage()));
                         print('Notification icon clicked');
                       },
                     ),
@@ -104,7 +108,6 @@ class _TheHomeState extends State<TheHome> {
 
                 const SizedBox(height: 17),
 
-                // Daily Tasks Card
                 Card(
                   color: const Color(0xFF50C2C9),
                   elevation: 4,

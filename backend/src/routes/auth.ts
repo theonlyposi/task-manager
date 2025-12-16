@@ -9,7 +9,7 @@ import nodemailer from "nodemailer";
 import otpGenerator from "otp-generator";
 
 const authRouter = Router();
-const otpStore = new Map<string, string>(); // email -> otp
+const otpStore = new Map<string, string>(); // this stores the memory 
 
 interface RequestOtpBody {
   email: string;
@@ -129,6 +129,101 @@ const tokenIsValidHandler: RequestHandler = async (req, res) => {
     res.status(500).json(false);
   }
 };
+// ==================== FORGOT PASSWORD ====================
+interface ForgotPasswordBody {
+  email: string;
+}
+
+authRouter.post("/forgot-password", async (req, res) => {
+  const { email } = req.body as ForgotPasswordBody;
+
+  const [user] = await db.select().from(users).where(eq(users.email, email));
+  if (!user) {
+    res.status(400).json({ error: "No account with that email exists." });
+    return;
+  }
+
+  const otp = otpGenerator.generate(6, {
+    digits: true,
+    upperCaseAlphabets: false,
+    lowerCaseAlphabets: false,
+    specialChars: false,
+  });
+
+  otpStore.set(email, otp);
+
+  await transporter.sendMail({
+    from: process.env.OTP_EMAIL,
+    to: email,
+    subject: "Password Reset OTP",
+    text: `Your OTP for resetting password is: ${otp}`,
+  });
+
+  res.status(200).json({ message: "OTP sent for password reset" });
+});
+
+authRouter.put("/update-profile", auth, async (req: AuthRequest, res): Promise<void> => {
+  try {
+    const { name, email, password } = req.body;
+    const userId = req.user;
+
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized: user ID missing" });
+      return;
+    }
+
+    const updates: Partial<NewUser> = {};
+    if (name) updates.name = name;
+    if (email) updates.email = email;
+    if (password) updates.password = await bcryptjs.hash(password, 8);
+
+    await db.update(users).set(updates).where(eq(users.id, userId));
+    const [updatedUser] = await db.select().from(users).where(eq(users.id, userId));
+
+    const token = jwt.sign({ id: updatedUser.id }, "passwordKey");
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+      },
+      token,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Profile update failed" });
+  }
+});
+
+// ==================== RESET PASSWORD ====================
+interface ResetPasswordBody {
+  email: string;
+  otp: string;
+  newPassword: string;
+}
+
+authRouter.post("/reset-password", async (req, res) => {
+  const { email, otp, newPassword } = req.body as ResetPasswordBody;
+
+  const savedOtp = otpStore.get(email);
+  if (!savedOtp || savedOtp !== otp) {
+    res.status(400).json({ error: "Invalid or expired OTP" });
+    return;
+  }
+
+  const hashedPassword = await bcryptjs.hash(newPassword, 8);
+
+  await db.update(users)
+    .set({ password: hashedPassword })
+    .where(eq(users.email, email));
+
+  otpStore.delete(email);
+
+  res.status(200).json({ message: "Password has been reset successfully." });
+});
+
 
 const getUserHandler: RequestHandler = async (req: any, res) => {
   try {

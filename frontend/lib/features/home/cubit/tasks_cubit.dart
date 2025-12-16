@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/core/constants/utils.dart';
@@ -7,6 +8,7 @@ import 'package:frontend/models/task_model.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/constants/constants.dart';
+import '../pages/notification_service.dart';
 
 part 'tasks_state.dart';
 
@@ -38,6 +40,13 @@ class TasksCubit extends Cubit<TasksState> {
 
       await taskLocalRepository.insertTask(taskModel);
       emit(AddNewTaskSuccess(taskModel));
+
+      // ✅ Show a local notification
+      await NotificationService().showNotification(
+        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title: "Task Created",
+        body: "Your task '$title' was added successfully!",
+      );
     } catch (e) {
       emit(TasksError(e.toString()));
     }
@@ -53,26 +62,33 @@ class TasksCubit extends Cubit<TasksState> {
     }
   }
 
+  /// ✅ Updated syncTasks to handle each task individually
   Future<void> syncTasks(String token) async {
     final unsyncedTasks = await taskLocalRepository.getUnsyncedTasks();
     if (unsyncedTasks.isEmpty) return;
 
-    final isSynced = await taskRemoteRepository.syncTasks(
-      token: token,
-      tasks: unsyncedTasks,
-    );
+    for (final task in unsyncedTasks) {
+      try {
+        final response = await taskRemoteRepository.createTask(
+          uid: task.uid,
+          title: task.title,
+          description: task.description,
+          hexColor: rgbToHex(task.color),
+          token: token,
+          dueAt: task.dueAt,
+        );
 
-    if (isSynced) {
-      for (final task in unsyncedTasks) {
-        taskLocalRepository.updateRowValue(task.id, 1);
+        await taskLocalRepository.updateRowValue(task.id, 1);
+        debugPrint("✅ Synced task ${task.id}");
+      } catch (e) {
+        debugPrint("❌ Error syncing task ${task.id}: $e");
       }
     }
   }
 
-// task_remote_repository.dart
   Future<void> deleteTask(String taskId, String token) async {
     final response = await http.delete(
-      Uri.parse('${Constants.backendUri}/tasks/$taskId'), // ✅ Ensure the taskId is in the URL
+      Uri.parse('${Constants.backendUri}/tasks/$taskId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -83,7 +99,6 @@ class TasksCubit extends Cubit<TasksState> {
       throw Exception('Failed to delete task: ${response.statusCode} - ${response.body}');
     }
   }
-
 
   Future<void> updateTask(TaskModel task, String token) async {
     try {
@@ -115,9 +130,8 @@ class TasksCubit extends Cubit<TasksState> {
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         uid: "",
-        isSynced: 1, // ✅ Add this if required (since it's a required field in your model)
+        isSynced: 1,
       );
-
 
       await taskRemoteRepository.updateTask(updatedTask, token);
       emit(EditTaskSuccess(updatedTask));
@@ -126,3 +140,141 @@ class TasksCubit extends Cubit<TasksState> {
     }
   }
 }
+
+// import 'package:flutter/material.dart';
+// import 'package:flutter_bloc/flutter_bloc.dart';
+// import 'package:frontend/core/constants/utils.dart';
+// import 'package:frontend/features/home/repository/task_local_repository.dart';
+// import 'package:frontend/features/home/repository/task_remote_repository.dart';
+// import 'package:frontend/models/task_model.dart';
+// import 'package:http/http.dart' as http;
+//
+// import '../../../core/constants/constants.dart';
+// import '../pages/notification_service.dart';
+//
+// part 'tasks_state.dart';
+//
+// class TasksCubit extends Cubit<TasksState> {
+//   TasksCubit() : super(TasksInitial());
+//
+//   final taskRemoteRepository = TaskRemoteRepository();
+//   final taskLocalRepository = TaskLocalRepository();
+//
+//   Future<void> createNewTask({
+//     required String title,
+//     required String description,
+//     required Color color,
+//     required String token,
+//     required String uid,
+//     required DateTime dueAt,
+//   }) async {
+//     try {
+//       emit(TasksLoading());
+//
+//       final taskModel = await taskRemoteRepository.createTask(
+//         uid: uid,
+//         title: title,
+//         description: description,
+//         hexColor: rgbToHex(color),
+//         token: token,
+//         dueAt: dueAt,
+//       );
+//
+//       await taskLocalRepository.insertTask(taskModel);
+//       emit(AddNewTaskSuccess(taskModel));
+//
+//       // ✅ Show a local notification after task is created
+//       NotificationService.showNotification(
+//         id: DateTime.now().millisecondsSinceEpoch ~/ 1000, // unique ID
+//         title: "Task Created",
+//         body: "Your task '${title}' was added successfully!",
+//       );
+//     } catch (e) {
+//       emit(TasksError(e.toString()));
+//     }
+//   }
+//
+//
+//   Future<void> getAllTasks({required String token}) async {
+//     try {
+//       emit(TasksLoading());
+//       final tasks = await taskRemoteRepository.getTasks(token: token);
+//       emit(GetTasksSuccess(tasks));
+//     } catch (e) {
+//       emit(TasksError(e.toString()));
+//     }
+//   }
+//
+//   Future<void> syncTasks(String token) async {
+//     final unsyncedTasks = await taskLocalRepository.getUnsyncedTasks();
+//     if (unsyncedTasks.isEmpty) return;
+//
+//     final isSynced = await taskRemoteRepository.syncTasks(
+//       token: token,
+//       tasks: unsyncedTasks,
+//     );
+//
+//     if (isSynced) {
+//       for (final task in unsyncedTasks) {
+//         taskLocalRepository.updateRowValue(task.id, 1);
+//       }
+//     }
+//   }
+//
+// // task_remote_repository.dart
+//   Future<void> deleteTask(String taskId, String token) async {
+//     final response = await http.delete(
+//       Uri.parse('${Constants.backendUri}/tasks/$taskId'), // ✅ Ensure the taskId is in the URL
+//       headers: {
+//         'Authorization': 'Bearer $token',
+//         'Content-Type': 'application/json',
+//       },
+//     );
+//
+//     if (response.statusCode != 200) {
+//       throw Exception('Failed to delete task: ${response.statusCode} - ${response.body}');
+//     }
+//   }
+//
+//
+//   Future<void> updateTask(TaskModel task, String token) async {
+//     try {
+//       emit(TasksLoading());
+//       await taskRemoteRepository.updateTask(task, token);
+//       await getAllTasks(token: token);
+//     } catch (e) {
+//       emit(TasksError(e.toString()));
+//     }
+//   }
+//
+//   Future<void> editTask({
+//     required String taskId,
+//     required String title,
+//     required String description,
+//     required Color color,
+//     required String token,
+//     required DateTime dueAt,
+//   }) async {
+//     try {
+//       emit(TasksLoading());
+//
+//       final updatedTask = TaskModel(
+//         id: taskId,
+//         title: title,
+//         description: description,
+//         color: color,
+//         dueAt: dueAt,
+//         createdAt: DateTime.now(),
+//         updatedAt: DateTime.now(),
+//         uid: "",
+//         isSynced: 1, // ✅ Add this if required (since it's a required field in your model)
+//       );
+//
+//
+//       await taskRemoteRepository.updateTask(updatedTask, token);
+//       emit(EditTaskSuccess(updatedTask));
+//     } catch (e) {
+//       emit(TasksError(e.toString()));
+//     }
+//   }
+// }

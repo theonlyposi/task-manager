@@ -37,9 +37,9 @@ class _BottomNavState extends State<TheNav> {
     return Scaffold(
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        backgroundColor: isDark ? Colors.black : Colors.white, // 🔄 Dynamic background
-        selectedItemColor: Color(0xFF50C2C9), // Looks good in both themes
-        unselectedItemColor: isDark ? Colors.white60 : Colors.black54, // Dynamic text/icon
+        backgroundColor: isDark ? Colors.black : Colors.white, //Dynamic background
+        selectedItemColor: Color(0xFF50C2C9),
+        unselectedItemColor: isDark ? Colors.white60 : Colors.black54,
         iconSize: 30,
         showSelectedLabels: false,
         showUnselectedLabels: false,

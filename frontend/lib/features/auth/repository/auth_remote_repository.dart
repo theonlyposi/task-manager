@@ -10,6 +10,7 @@ class AuthRemoteRepository {
   final spService = SpService();
   final authLocalRepository = AuthLocalRepository();
 
+  // this is to sign up the users
   Future<UserModel> signUp({
     required String name,
     required String email,
@@ -43,6 +44,7 @@ class AuthRemoteRepository {
     }
   }
 
+  // this is to login the users with the credentials
   Future<UserModel> login({
     required String email,
     required String password,
@@ -74,6 +76,42 @@ class AuthRemoteRepository {
     }
   }
 
+  // This is to update user profile
+  Future<UserModel?> updateProfile({
+    required String token,
+    required String name,
+    required String email,
+    String? password,
+  }) async {
+    try {
+      final url = Uri.parse('${Constants.backendUri}/auth/update-profile');
+
+      final res = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+        body: jsonEncode({
+          "name": name,
+          "email": email,
+          if (password != null && password.isNotEmpty) "password": password,
+        }),
+      );
+
+      if (res.statusCode != 200) {
+        throw jsonDecode(res.body)['error'] ?? "Failed to update profile";
+      }
+
+      final data = jsonDecode(res.body);
+      return UserModel.fromMap(data);
+    } catch (e) {
+      throw e.toString();
+    }
+  }
+
+
+// this is to get the users data
   Future<UserModel?> getUserData({required String token}) async {
     try {
       if (token.isEmpty) {
@@ -112,4 +150,43 @@ class AuthRemoteRepository {
       return user;
     }
   }
+
+  //this is to get the otp when the users forget the password and wants to change it
+  Future<void> sendForgotPasswordOtp(String email) async {
+    final url = Uri.parse("${Constants.backendUri}/auth/forgot-password");
+
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"email": email}),
+    );
+
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body);
+      throw Exception(body["error"] ?? "Failed to send OTP");
+    }
+  }
+
+  //tbis is to actually reset the password with the otp sent
+  Future<void> resetPasswordWithOtp({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    final url = Uri.parse('${Constants.backendUri}/auth/reset-password');
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "email": email,
+        "otp": otp,
+        "newPassword": newPassword,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(jsonDecode(response.body)['error'] ?? 'Reset failed');
+    }
+  }
+
 }

@@ -131,6 +131,7 @@ taskRouter.patch("/", auth, async (req: Request, res: Response): Promise<void> =
 });
 
 // ✅ Sync Multiple Tasks
+// ✅ Sync Multiple Tasks with UPSERT logic
 taskRouter.post("/sync", auth, async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as AuthRequest;
@@ -144,11 +145,30 @@ taskRouter.post("/sync", auth, async (req: Request, res: Response): Promise<void
       updatedAt: new Date(t.updatedAt),
     }));
 
-    const pushedTasks = await db.insert(tasks).values(formattedTasks).returning();
-    res.status(201).json(pushedTasks);
+    const pushedTasks = await Promise.all(
+      formattedTasks.map(async (task) => {
+        return await db
+          .insert(tasks)
+          .values(task)
+          .onConflictDoUpdate({
+            target: tasks.id, // 👈 handles duplicates by ID
+            set: {
+              title: task.title,
+              description: task.description,
+              dueAt: task.dueAt,
+              updatedAt: task.updatedAt,
+              progress: task.progress,
+            },
+          })
+          .returning();
+      })
+    );
+
+    res.status(201).json(pushedTasks.flat());
   } catch (e) {
     res.status(500).json({ error: e });
   }
 });
+
 
 export default taskRouter;

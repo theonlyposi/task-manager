@@ -1,10 +1,17 @@
 // db-check.ts
+
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { users } from './src/db/schema'; // Update the path if different
+import * as dotenv from 'dotenv';
+import { users } from './src/db/schema'; // ✅ Adjust if your schema path is different
+
+dotenv.config(); // Load .env
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:test123@localhost:5432/mydb',
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false, // Required for Render DB
+  },
 });
 
 const db = drizzle(pool);

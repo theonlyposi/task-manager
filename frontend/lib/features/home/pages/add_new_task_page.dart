@@ -1,10 +1,13 @@
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:frontend/features/auth/cubit/auth_cubit.dart';
 import 'package:frontend/features/home/cubit/tasks_cubit.dart';
 import 'package:frontend/models/task_model.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+
+
+import 'notification_service.dart'; // ✅ Import notification service
 
 class AddNewTaskPage extends StatefulWidget {
   final TaskModel? task;
@@ -28,20 +31,12 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
   @override
   void initState() {
     super.initState();
-
     if (widget.task != null) {
       titleController.text = widget.task!.title;
       descriptionController.text = widget.task!.description;
       selectedDate = widget.task!.dueAt;
       selectedColor = widget.task!.color;
     }
-  }
-
-  @override
-  void dispose() {
-    titleController.dispose();
-    descriptionController.dispose();
-    super.dispose();
   }
 
   Future<void> _selectDate() async {
@@ -51,7 +46,7 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 90)),
     );
-    if (pickedDate != null && pickedDate != selectedDate) {
+    if (pickedDate != null) {
       setState(() {
         selectedDate = pickedDate;
       });
@@ -72,8 +67,8 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
     final user = authState.user;
 
     if (widget.task == null) {
-      // Create new task
-      await context.read<TasksCubit>().createNewTask(
+      // Create task
+      final result = await context.read<TasksCubit>().createNewTask(
         uid: user.id,
         title: titleController.text.trim(),
         description: descriptionController.text.trim(),
@@ -81,8 +76,16 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
         token: user.token,
         dueAt: selectedDate,
       );
+
+      // Schedule local notification
+      await NotificationService().scheduleNotification(
+        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title: titleController.text.trim(),
+        body: descriptionController.text.trim(),
+        scheduledDate: selectedDate,
+      );
     } else {
-      // Edit existing task
+      // Edit task
       await context.read<TasksCubit>().editTask(
         taskId: widget.task!.id,
         title: titleController.text.trim(),
@@ -117,14 +120,12 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
       body: BlocConsumer<TasksCubit, TasksState>(
         listener: (context, state) {
           if (state is TasksError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.error)),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.error)));
           } else if (state is AddNewTaskSuccess || state is EditTaskSuccess) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text(isEditing ? 'Task updated!' : 'Task added!')),
             );
-            Navigator.pop(context, true); // Return true to trigger refresh
+            Navigator.pop(context, true);
           }
         },
         builder: (context, state) {
@@ -145,9 +146,7 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) =>
-                    (value == null || value.trim().isEmpty)
-                        ? "Title cannot be empty"
-                        : null,
+                    (value == null || value.trim().isEmpty) ? "Title cannot be empty" : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -158,9 +157,7 @@ class _AddNewTaskPageState extends State<AddNewTaskPage> {
                     ),
                     maxLines: 4,
                     validator: (value) =>
-                    (value == null || value.trim().isEmpty)
-                        ? "Description cannot be empty"
-                        : null,
+                    (value == null || value.trim().isEmpty) ? "Description cannot be empty" : null,
                   ),
                   const SizedBox(height: 16),
                   ColorPicker(
